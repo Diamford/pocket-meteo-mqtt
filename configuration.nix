@@ -6,7 +6,7 @@
 
 {
   imports = [
-    mqtt.nix
+    ./mqtt.nix
   ];
 
   services.logind.settings.Login = {
