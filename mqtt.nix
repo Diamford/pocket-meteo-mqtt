@@ -2,8 +2,6 @@
 { ... }:
 
 {
-  environment.systemPackages = with pkgs; [mosquitto];
-
 	services.mosquitto = {
 		enable = true;
 		persistence = true;
