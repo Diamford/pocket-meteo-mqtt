@@ -1,0 +1,16 @@
+services:
+  mqtt:
+    image: pocketmeteo-mqtt:latest
+    container_name: pocketmeteo-mqtt
+    restart: unless-stopped
+
+    ports:
+      - "8883:8883"
+
+    volumes:
+      - mqtt_data:/mosquitto/data
+      - ./secrets:/var/lib/pocketmeteo/secrets:ro
+      - ./certs:/mosquitto/certs:ro
+
+volumes:
+  mqtt_data:
