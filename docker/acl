@@ -1,0 +1,17 @@
+user station01
+topic write pocketmeteo/station01/data
+
+user station02
+topic write pocketmeteo/station02/data
+
+user station03
+topic write pocketmeteo/station03/data
+
+user station04
+topic write pocketmeteo/station04/data
+
+user station05
+topic write pocketmeteo/station05/data
+
+user collector
+topic read pocketmeteo/+/data

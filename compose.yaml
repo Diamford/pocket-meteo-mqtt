@@ -1,0 +1,30 @@
+services:
+  mosquitto-init:
+    image: eclipse-mosquitto:2
+    user: "0:0"
+    restart: "no"
+    entrypoint: ["/bin/sh", "/bootstrap-auth.sh"]
+    environment:
+      MQTT_USERS: "station01 station02 station03 station04 station05 collector"
+    volumes:
+      - ./docker/bootstrap-auth.sh:/bootstrap-auth.sh:ro
+      - ${MQTT_SECRETS_DIR:-./secrets}:/run/secrets:ro
+      - mosquitto-auth:/generated
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    depends_on:
+      mosquitto-init:
+        condition: service_completed_successfully
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./docker/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./docker/acl:/mosquitto/config/acl:ro
+      - mosquitto-auth:/run/mosquitto-auth:ro
+      - mosquitto-data:/mosquitto/data
+
+volumes:
+  mosquitto-auth:
+  mosquitto-data:
