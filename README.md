@@ -40,9 +40,17 @@ Useful commands:
 
 ```console
 docker compose ps
+# Show recent broker events.
+docker compose logs --tail=100 mosquitto
+# Follow broker events in real time.
 docker compose logs -f mosquitto
 docker compose down
 ```
+
+The broker logs connections, authentication failures, subscriptions and other
+service events to the container log. Docker keeps up to five 10 MB log files,
+so logs cannot grow without a limit. MQTT payloads and passwords are not
+written to the log.
 
 If UFW is enabled on the VPS, allow incoming MQTT connections:
 
