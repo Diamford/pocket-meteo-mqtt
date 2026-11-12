@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>MQTT phone chat</title>
+  <script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.4/dist/mqtt.min.js"></script>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background: #101827; color: #eef2ff; }
+    main { max-width: 680px; min-height: 100vh; margin: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+    h1 { margin: 0; font-size: 1.35rem; }
+    .connection, form { display: grid; gap: 8px; }
+    .connection { grid-template-columns: 1fr 1fr; }
+    .connection label:first-child { grid-column: 1 / -1; }
+    label { font-size: .8rem; color: #aebbd1; }
+    input, button { width: 100%; border: 1px solid #34425a; border-radius: 10px; padding: 12px; font: inherit; }
+    input { margin-top: 4px; background: #182235; color: #fff; }
+    button { border: 0; background: #4f7cff; color: white; font-weight: 700; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+    #status { margin: 0; color: #fbbf24; font-size: .9rem; }
+    #status.online { color: #4ade80; }
+    #messages { flex: 1; min-height: 240px; margin: 0; padding: 8px; overflow-y: auto; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .message { align-self: flex-start; max-width: 85%; padding: 9px 12px; border-radius: 12px; background: #26344c; overflow-wrap: anywhere; }
+    .message.mine { align-self: flex-end; background: #315ec9; }
+    .meta { display: block; margin-bottom: 3px; color: #b9c7df; font-size: .72rem; }
+    form { grid-template-columns: 1fr auto; padding-bottom: env(safe-area-inset-bottom); }
+    form button { width: auto; }
+    @media (max-width: 440px) { .connection { grid-template-columns: 1fr; } .connection label:first-child { grid-column: auto; } }
+  </style>
+</head>
+<body>
+<main>
+  <h1>MQTT phone chat</h1>
+  <section class="connection">
+    <label>WebSocket server<input id="server" inputmode="url"></label>
+    <label>User<input id="username" autocomplete="username" placeholder="chat01"></label>
+    <label>Password<input id="password" type="password" autocomplete="current-password"></label>
+    <button id="connect" type="button">Connect</button>
+  </section>
+  <p id="status">Disconnected</p>
+  <ol id="messages" aria-live="polite"></ol>
+  <form id="send-form">
+    <input id="text" maxlength="500" autocomplete="off" placeholder="Message" disabled>
+    <button id="send" disabled>Send</button>
+  </form>
+</main>
+<script>
+  const topic = 'pocketmeteo/chat/messages';
+  const $ = id => document.getElementById(id);
+  const status = $('status');
+  const server = $('server');
+  const connectButton = $('connect');
+  let client = null;
+
+  server.value = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.hostname}:9001`;
+
+  function setConnected(connected, text) {
+    status.textContent = text;
+    status.classList.toggle('online', connected);
+    $('text').disabled = !connected;
+    $('send').disabled = !connected;
+    connectButton.textContent = connected ? 'Disconnect' : 'Connect';
+  }
+
+  function showMessage(message) {
+    const item = document.createElement('li');
+    item.className = `message${message.sender === $('username').value ? ' mine' : ''}`;
+    const meta = document.createElement('span');
+    meta.className = 'meta';
+    const time = message.sentAt ? new Date(message.sentAt).toLocaleTimeString() : '';
+    meta.textContent = `${message.sender || 'unknown'} ${time}`;
+    const body = document.createElement('span');
+    body.textContent = message.text || '';
+    item.append(meta, body);
+    $('messages').append(item);
+    item.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  connectButton.addEventListener('click', () => {
+    if (client) {
+      client.end(true);
+      client = null;
+      setConnected(false, 'Disconnected');
+      return;
+    }
+    if (!server.value || !$('username').value || !$('password').value) {
+      setConnected(false, 'Fill in server, user and password');
+      return;
+    }
+    connectButton.disabled = true;
+    status.textContent = 'Connecting…';
+    client = mqtt.connect(server.value, {
+      username: $('username').value,
+      password: $('password').value,
+      clientId: `phone-${crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(16).slice(2)}`,
+      connectTimeout: 8000,
+      reconnectPeriod: 2000,
+      clean: true
+    });
+    client.on('connect', () => client.subscribe(topic, { qos: 1 }, error => {
+      connectButton.disabled = false;
+      if (error) return setConnected(false, `Subscription error: ${error.message}`);
+      setConnected(true, `Connected as ${$('username').value}`);
+      $('text').focus();
+    }));
+    client.on('message', (_topic, payload) => {
+      try { showMessage(JSON.parse(payload.toString())); }
+      catch { showMessage({ sender: 'unknown', text: payload.toString() }); }
+    });
+    client.on('error', error => {
+      connectButton.disabled = false;
+      setConnected(false, `Error: ${error.message}`);
+    });
+    client.on('offline', () => setConnected(false, 'Connection lost; retrying…'));
+  });
+
+  $('send-form').addEventListener('submit', event => {
+    event.preventDefault();
+    const input = $('text');
+    const text = input.value.trim();
+    if (!client?.connected || !text) return;
+    const payload = JSON.stringify({ sender: $('username').value, text, sentAt: new Date().toISOString() });
+    client.publish(topic, payload, { qos: 1 }, error => {
+      if (error) setConnected(false, `Send error: ${error.message}`);
+    });
+    input.value = '';
+    input.focus();
+  });
+</script>
+</body>
+</html>

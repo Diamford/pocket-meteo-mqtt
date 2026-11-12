@@ -5,7 +5,7 @@ services:
     restart: "no"
     entrypoint: ["/bin/sh", "/bootstrap-auth.sh"]
     environment:
-      MQTT_USERS: "station01 station02 station03 station04 station05 collector"
+      MQTT_USERS: "station01 station02 station03 station04 station05 collector chat01 chat02"
     volumes:
       - ./docker/bootstrap-auth.sh:/bootstrap-auth.sh:ro
       - ${MQTT_SECRETS_DIR:-./secrets}:/run/secrets:ro
@@ -24,11 +24,22 @@ services:
         condition: service_completed_successfully
     ports:
       - "1883:1883"
+      - "9001:9001"
     volumes:
       - ./docker/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - ./docker/acl:/mosquitto/config/acl:ro
       - mosquitto-auth:/run/mosquitto-auth:ro
       - mosquitto-data:/mosquitto/data
+
+  chat-web:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - mosquitto
+    ports:
+      - "8080:80"
+    volumes:
+      - ./web:/usr/share/nginx/html:ro
 
 volumes:
   mosquitto-auth:

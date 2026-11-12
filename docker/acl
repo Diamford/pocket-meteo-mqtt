@@ -15,3 +15,9 @@ topic write pocketmeteo/station05/data
 
 user collector
 topic read pocketmeteo/+/data
+
+user chat01
+topic readwrite pocketmeteo/chat/messages
+
+user chat02
+topic readwrite pocketmeteo/chat/messages

@@ -19,6 +19,8 @@ printf '%s' 'CHANGE_ME' > secrets/station03
 printf '%s' 'CHANGE_ME' > secrets/station04
 printf '%s' 'CHANGE_ME' > secrets/station05
 printf '%s' 'CHANGE_ME' > secrets/collector
+printf '%s' 'CHANGE_ME_CHAT_1' > secrets/chat01
+printf '%s' 'CHANGE_ME_CHAT_2' > secrets/chat02
 chmod 600 secrets/*
 docker compose up -d
 ```
@@ -31,6 +33,26 @@ The files under `secrets/` are ignored by Git. To keep them elsewhere, set
 - `station01` ... `station05` may publish only to their corresponding
   `pocketmeteo/stationXX/data` topic.
 - `collector` may subscribe to `pocketmeteo/+/data` and cannot publish.
+- `chat01` and `chat02` may both publish and subscribe to
+  `pocketmeteo/chat/messages`. They are intended for the two-phone chat test.
+
+## Two-phone chat test
+
+The Compose stack also serves a small browser chat on port `8080`; browser MQTT
+connections use WebSockets on port `9001`.
+
+1. Start the stack with `docker compose up -d` and allow TCP ports `8080` and
+   `9001` in the VPS firewall.
+2. Open `http://YOUR_SERVER_IP:8080` on both phones. Both phones must be able to
+   reach the server; do not use `localhost` in a phone browser.
+3. On phone 1 enter user `chat01` and its password. On phone 2 enter `chat02`
+   and its password. The server field is filled from the page address.
+4. Press **Connect** on both phones and send messages in either direction.
+
+Messages are not retained after every client has received them, so this is a
+live connectivity test rather than durable chat history. The page itself loads
+MQTT.js from jsDelivr; each phone therefore needs Internet access in addition
+to access to the VPS.
 
 After changing a password, run `docker compose up -d --force-recreate
 mosquitto-init mosquitto`. Broker messages survive container recreation in the
@@ -56,8 +78,10 @@ If UFW is enabled on the VPS, allow incoming MQTT connections:
 
 ```console
 sudo ufw allow 1883/tcp
+sudo ufw allow 9001/tcp
+sudo ufw allow 8080/tcp
 ```
 
-Port `1883` carries unencrypted MQTT traffic. If clients connect over the public
-Internet, put the broker behind a private VPN or add a TLS listener before using
-it in production.
+Ports `1883` and `9001` carry unencrypted MQTT traffic (including login
+credentials). If clients connect over the public Internet, put the broker behind
+a private VPN or add TLS/secure WebSockets before using it in production.
