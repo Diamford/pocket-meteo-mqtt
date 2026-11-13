@@ -48,6 +48,10 @@ EOF
 while IFS= read -r username || [ -n "$username" ]; do
   case "$username" in
     ''|'#'*) continue ;;
+    collector|chat01|chat02)
+      echo "Reserved MQTT username in /config/nodes: $username" >&2
+      exit 1
+      ;;
     *[!a-z0-9_-]*|-*|_*|*[!a-z0-9])
       echo "Invalid MQTT node name in /config/nodes: $username" >&2
       exit 1

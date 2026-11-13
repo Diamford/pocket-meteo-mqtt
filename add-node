@@ -2,7 +2,7 @@
 set -eu
 
 usage() {
-  echo "Usage: ./add-node [--no-restart]" >&2
+  echo "Usage: ./add-node [--no-restart] NODE_NAME" >&2
   exit 2
 }
 
@@ -14,7 +14,19 @@ case "${1:-}" in
     ;;
 esac
 
-[ "$#" -eq 0 ] || usage
+[ "$#" -eq 1 ] || usage
+node=$1
+
+case "$node" in
+  *[!a-z0-9_-]*|-*|_*|*[!a-z0-9])
+    echo "Invalid node name: use lowercase letters, digits, hyphens and underscores; start and end with a letter or digit." >&2
+    exit 2
+    ;;
+  collector|chat01|chat02)
+    echo "Node name '$node' is reserved." >&2
+    exit 2
+    ;;
+esac
 
 command -v python3 >/dev/null 2>&1 || {
   echo "python3 is required for secure password generation." >&2
@@ -36,16 +48,11 @@ if ! mkdir "$lock_dir" 2>/dev/null; then
 fi
 trap 'rmdir "$lock_dir" 2>/dev/null || true' EXIT HUP INT TERM
 
-number=1
-while :; do
-  node=$(printf 'station%02d' "$number")
-  if ! grep -Fqx "$node" "$nodes_file"; then
-    break
-  fi
-  number=$((number + 1))
-done
-
 secret_file="$secrets_dir/$node"
+if grep -Fqx "$node" "$nodes_file"; then
+  echo "Node '$node' already exists." >&2
+  exit 1
+fi
 if [ -e "$secret_file" ]; then
   echo "Cannot add $node: its secret already exists at $secret_file" >&2
   exit 1

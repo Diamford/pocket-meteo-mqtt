@@ -31,6 +31,44 @@ services:
       - mosquitto-auth:/run/mosquitto-auth:ro
       - mosquitto-data:/mosquitto/data
 
+  postgres:
+    image: postgres:18.7-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: meteo
+      POSTGRES_USER: meteo
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U meteo -d meteo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    secrets:
+      - postgres_password
+
+  collector:
+    build:
+      context: ./collector
+    restart: unless-stopped
+    depends_on:
+      mosquitto:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    environment:
+      MQTT_BROKER: tcp://mosquitto:1883
+      MQTT_USERNAME: collector
+      MQTT_PASSWORD_FILE: /run/secrets/collector_password
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: meteo
+      POSTGRES_USER: meteo
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - collector_password
+      - postgres_password
+
   chat-web:
     image: nginx:1.27-alpine
     restart: unless-stopped
@@ -44,3 +82,10 @@ services:
 volumes:
   mosquitto-auth:
   mosquitto-data:
+  postgres-data:
+
+secrets:
+  collector_password:
+    file: ${MQTT_SECRETS_DIR:-./secrets}/collector
+  postgres_password:
+    file: ${MQTT_SECRETS_DIR:-./secrets}/postgres
