@@ -1,0 +1,81 @@
+#!/bin/sh
+set -eu
+
+usage() {
+  echo "Usage: ./add-node [--no-restart]" >&2
+  exit 2
+}
+
+restart=true
+case "${1:-}" in
+  --no-restart)
+    restart=false
+    shift
+    ;;
+esac
+
+[ "$#" -eq 0 ] || usage
+
+command -v python3 >/dev/null 2>&1 || {
+  echo "python3 is required for secure password generation." >&2
+  exit 1
+}
+
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+nodes_file="$project_dir/docker/nodes"
+secrets_dir=${MQTT_SECRETS_DIR:-"$project_dir/secrets"}
+case "$secrets_dir" in
+  /*) ;;
+  *) secrets_dir="$project_dir/$secrets_dir" ;;
+esac
+lock_dir="$project_dir/docker/.add-node.lock"
+
+if ! mkdir "$lock_dir" 2>/dev/null; then
+  echo "Another add-node command is already running." >&2
+  exit 1
+fi
+trap 'rmdir "$lock_dir" 2>/dev/null || true' EXIT HUP INT TERM
+
+number=1
+while :; do
+  node=$(printf 'station%02d' "$number")
+  if ! grep -Fqx "$node" "$nodes_file"; then
+    break
+  fi
+  number=$((number + 1))
+done
+
+secret_file="$secrets_dir/$node"
+if [ -e "$secret_file" ]; then
+  echo "Cannot add $node: its secret already exists at $secret_file" >&2
+  exit 1
+fi
+
+mkdir -p "$secrets_dir"
+chmod 700 "$secrets_dir"
+password=$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')
+umask 077
+printf '%s' "$password" > "$secret_file"
+printf '%s\n' "$node" >> "$nodes_file"
+chmod 600 "$secret_file"
+
+echo "Node: $node"
+echo "Password: $password"
+echo "Topic: pocketmeteo/$node/data"
+echo "Secret saved to: $secret_file"
+
+if [ "$restart" = true ]; then
+  command -v docker >/dev/null 2>&1 || {
+    echo "Node was saved, but Docker was not found. Apply it later with:" >&2
+    echo "  docker compose up -d --force-recreate mosquitto-init mosquitto" >&2
+    exit 1
+  }
+  if ! docker compose -f "$project_dir/compose.yaml" up -d --force-recreate mosquitto-init mosquitto; then
+    echo "Node was saved, but the broker restart failed. Fix the reported error and rerun:" >&2
+    echo "  docker compose up -d --force-recreate mosquitto-init mosquitto" >&2
+    exit 1
+  fi
+  echo "Broker configuration updated."
+else
+  echo "Broker was not restarted (--no-restart)."
+fi

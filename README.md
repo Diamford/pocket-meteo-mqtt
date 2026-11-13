@@ -28,10 +28,34 @@ docker compose up -d
 The files under `secrets/` are ignored by Git. To keep them elsewhere, set
 `MQTT_SECRETS_DIR` to an absolute directory when running Compose.
 
+## Add a node
+
+Add a node with one command from the repository directory:
+
+```console
+./add-node
+```
+
+The command selects the first available portable station number (`station06`,
+then `station07`, and so on). It generates a 256-bit password with Python's
+cryptographic `secrets` module, stores it in the corresponding file such as
+`secrets/station06` with mode `600`, adds the station to `docker/nodes`, and
+recreates the authentication helper and broker containers. It prints the
+password once so it can be copied to the station. The new station may publish
+only to its corresponding topic, such as `pocketmeteo/station06/data`.
+
+Use `./add-node --no-restart` to only update the files, for example while
+preparing the server before its first start. If secrets are kept elsewhere,
+pass the same setting used by Compose:
+
+```console
+MQTT_SECRETS_DIR=/absolute/private/path ./add-node
+```
+
 ## Access rules
 
-- `station01` ... `station05` may publish only to their corresponding
-  `pocketmeteo/stationXX/data` topic.
+- Nodes listed in `docker/nodes` may publish only to their corresponding
+  `pocketmeteo/NODE_NAME/data` topic.
 - `collector` may subscribe to `pocketmeteo/+/data` and cannot publish.
 - `chat01` and `chat02` may both publish and subscribe to
   `pocketmeteo/chat/messages`. They are intended for the two-phone chat test.

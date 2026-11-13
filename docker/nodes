@@ -1,0 +1,6 @@
+# One MQTT node username per line. Use ./add-node to add entries.
+station01
+station02
+station03
+station04
+station05

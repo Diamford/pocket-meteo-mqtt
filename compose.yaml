@@ -5,9 +5,10 @@ services:
     restart: "no"
     entrypoint: ["/bin/sh", "/bootstrap-auth.sh"]
     environment:
-      MQTT_USERS: "station01 station02 station03 station04 station05 collector chat01 chat02"
+      MQTT_BASE_USERS: "collector chat01 chat02"
     volumes:
       - ./docker/bootstrap-auth.sh:/bootstrap-auth.sh:ro
+      - ./docker/nodes:/config/nodes:ro
       - ${MQTT_SECRETS_DIR:-./secrets}:/run/secrets:ro
       - mosquitto-auth:/generated
 
@@ -27,7 +28,6 @@ services:
       - "9001:9001"
     volumes:
       - ./docker/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
-      - ./docker/acl:/mosquitto/config/acl:ro
       - mosquitto-auth:/run/mosquitto-auth:ro
       - mosquitto-data:/mosquitto/data
 
